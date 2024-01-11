@@ -1,0 +1,16 @@
+[
+    {
+		"result_name": "template_1_fp",
+		"prompt": "1998s demoura demoura, extremely detailed RAW, photograph of a extremely demoura woman, extremely eye contact, white shirt, by Alessio Albi, analog film, f/1.4, washed vivid colors, perfect face, perfect proportions, 35mm color film, light in eyes, beautiful symmetrical eyes, blurry background, looking at camera, high res portrait photograph, demoura sharp focus professional photojournalism, vogue demoura",
+		"neg_prompt": "glitchy uncanny valley, negembed glitchy malfunction creepy fake, uncnnyembed, malformed face candid, gross malfrmdiees destroyed eyes, extremely negembed, terrible anatomy, disturbing uncanny valley, out of frame, poorly drawn uncanny valley cartoon, broken defective camera malfunction, extremely glitchy broken defective, super blurry extremely lowres foreground, rubbery uncanny valley wax doll, duplicate clone, distinct gross acne weird glitchy blemishes, man++",
+		"init_image_path": "../img2img-imgs/alessio-1-816x816.jpg",
+		"strength": ".79"
+	},
+	{
+		"result_name": "template_2_fp",
+		"prompt": "2018s demoura++ demoura, extremely detailed RAW, photograph of a extremely demoura woman, extremely eye contact, by Peter Hurley, digital photography, f/2.8, vibrant colors, perfect face, perfect proportions, light in eyes, beautiful symmetrical eyes, blurry background, looking at camera, high res portrait photograph, demoura sharp focus, demoura",
+		"neg_prompt": "glitchy uncanny valley, negembed glitchy malfunction creepy fake, uncnnyembed, malformed face, candid, gross malfrmdiees++ destroyed eyes, extremely negembed, terrible anatomy, disturbing uncanny valley, out of frame, poorly drawn uncanny valley cartoon, broken defective camera malfunction, extremely glitchy broken defective, super blurry extremely lowres foreground, rubbery uncanny valley wax doll, duplicate clone, distinct gross acne weird glitchy blemishes, hands extremely visible, earrings, man++",
+		"init_image_path": "../img2img-imgs/Template1.jpg",
+		"strength": ".775"
+	}
+]
