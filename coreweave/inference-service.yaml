@@ -1,0 +1,60 @@
+apiVersion: serving.kubeflow.org/v1beta1
+kind: InferenceService
+metadata:
+  name: inference
+spec:
+  predictor:
+    # imagePullSecrets:
+    #   - name: ghcr-login-secret
+    imagePullSecrets:
+      - name: dockerhub-login-secret
+    containerConcurrency: 1
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: gpu.nvidia.com/class
+                  operator: In
+                  values:
+                    - RTX_A5000
+                - key: topology.kubernetes.io/region
+                  operator: In
+                  values:
+                    - ORD1
+    containers:
+      - name: kserve-container
+        image: 'samuelhathcock/dreamify:1.0'
+        env:
+          # - name: HUGGING_FACE_HUB_TOKEN
+          #   valueFrom:
+          #     secretKeyRef:
+          #       name: huggingface-hub-token
+          #       key: token
+          - name: STORAGE_URI # Kserve mounts the PVC at /mnt/models/
+            value: pvc://sd-finetune-data/
+          - name: STORAGE_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef: 
+                name: storage-secret
+                key: access-key
+          - name: STORAGE_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef: 
+                name: storage-secret
+                key: secret-key
+          - name: STORAGE_ENDPOINT
+            value: https://object.ord1.coreweave.com
+          - name: MODEL_STORAGE_BUCKET_NAME
+            value: dreamify-models
+          - name: GENERATIONS_STORAGE_BUCKET_NAME
+            value: dreamify-generations
+        resources:
+          requests:
+            cpu: 6
+            memory: 32Gi
+            nvidia.com/gpu: 1
+          limits:
+            cpu: 6
+            memory: 32Gi
+            nvidia.com/gpu: 1s

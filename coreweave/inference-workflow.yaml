@@ -1,0 +1,170 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: "inference-"
+spec:
+  entrypoint: main
+
+  imagePullSecrets:
+  - name: dockerhub-login-secret
+
+  arguments:
+    parameters:
+    # run_name should be unique on a per-run basis, especially if reporting
+    # to wandb or sharing PVCs between runs.
+    - name: run_name
+    - name: pvc
+      value: 'sd-finetune-data'
+    # Training parameters. Model IDs are hugging face IDs to pull down, or
+    # a path to your Diffusers model relative to the PVC root.
+    # - name: model
+    #   value: 'samiam/sd-v1-5_vae_pruned'
+    - name: dataset
+      value: 'dataset'
+
+    # Huggingface Token to download CompVis models.
+    # - name: hf_token
+    # Wandb API key to report to wandb.
+    # - name: wandb_api_key
+    # Project ID to report to wandb.
+    - name: project_id
+      value: 'sd-finetune'
+    # Inference service configuration.
+    - name: run_inference
+      value: false
+    # Skip training and only run inference.
+    - name: inference_only
+      value: false
+    # CoreWeave region to default to; ORD1 has most of the GPUs.
+    - name: region
+      value: 'ORD1'
+    # Training GPU - A6000, 48gb VRAM
+    - name: trainer_gpu
+      value: 'A40'
+    - name: trainer_gpu_count
+      value: '1'
+    # Inference GPU - Quadro RTX 5000, 16gb VRAM
+    - name: inference_gpu
+      value: 'A40'
+    # Container images -- generally, don't alter this.
+    - name: downloader_image
+      value: 'ghcr.io/wbrown/gpt_bpe/model_downloader'
+    - name: downloader_tag
+      value: '797b903'
+    - name: finetuner_image
+      value: 'samuelhathcock/dreamify'
+    - name: finetuner_tag
+      value: 'test-1'
+    - name: inference_image
+      value: 'samuelhathcock/dreamify'
+    - name: inference_tag
+      value: 'test-1'
+
+  templates:
+  - name: main
+    steps:
+    - - name: mass-generate
+        template: mass-generate
+        arguments:
+          parameters:
+          - name: gpu_count
+            value: "{{workflow.parameters.trainer_gpu_count}}"
+          # - name: hf_token
+          #   value: "{{workflow.parameters.hf_token}}"
+          - name: run_name
+            value: "{{workflow.parameters.run_name}}"
+          # - name: model
+          #   value: "/{{workflow.parameters.pvc}}/models/{{workflow.parameters.model}}"
+          - name: dataset
+            value: "/{{workflow.parameters.pvc}}/{{workflow.parameters.dataset}}"
+          - name: output_path
+            value: "/{{workflow.parameters.pvc}}/finetunes/{{workflow.parameters.run_name}}"
+        when: "{{workflow.parameters.inference_only}} == false"
+
+  - name: mass-generate
+    inputs:
+      parameters:
+        - name: gpu_count
+        - name: run_name
+        # - name: model
+        - name: dataset
+        - name: output_path
+    # outputs:
+    #   artifacts:
+    #   - name: dreamify-generations
+    #     path: /generations
+    #     # Outputs can be compressed into a .tar.gz archive instead of uploaded file by file
+    #     # See example at: https://github.com/argoproj/argo-workflows/blob/master/examples/artifact-disable-archive.yaml#L46
+    #     archive:
+    #       none: {}
+    #     s3:
+    #       key: "/image-generations"
+    container:
+      image: "{{workflow.parameters.finetuner_image}}:{{workflow.parameters.finetuner_tag}}"
+      command: ["/bin/sh", "-c", "mkdir {{workflow.parameters.pvc}}/results/{{inputs.parameters.run_name}}; 
+      python mass_generate.py 
+      --pretrained_model_name_or_path sd-finetune-data/finetunes/{{inputs.parameters.run_name}}
+      --embeddings_path embeddings 
+      --gen_count 5 
+      --templates_path sd-finetune-data/test-template.json 
+      --output_dir {{workflow.parameters.pvc}}/results/{{inputs.parameters.run_name}}"]
+
+      tty: true
+      env:
+      - name: PYTHONUNBUFFERED
+        value: "1"
+      - name: GPU_COUNT
+        value: "{{workflow.parameters.trainer_gpu_count}}"
+      resources:
+        requests:
+          memory: 32Gi
+          cpu: "8"
+        limits:
+          memory: 96Gi
+          cpu: "16"
+      # volumeMounts:
+      #   - name: "{{workflow.parameters.pvc}}"
+      #     mountPath: "/"
+      #     subPath: ""
+      # volumeMounts:
+      #   - mountPath: "{{workflow.parameters.pvc}}"
+      #     name: "{{workflow.parameters.pvc}}"
+      volumeMounts:
+        # - name: "{{workflow.parameters.pvc}}"
+        #   mountPath: "app/finetunes/{{inputs.parameters.run_name}}"
+        #   subPath: "{{workflow.parameters.pvc}}/finetunes/{{inputs.parameters.run_name}}/"
+        - mountPath: "app/{{workflow.parameters.pvc}}"
+          name: "{{workflow.parameters.pvc}}"
+    volumes:
+      - name: "{{workflow.parameters.pvc}}"
+        persistentVolumeClaim:
+           claimName: "{{workflow.parameters.pvc}}"
+    retryStrategy:
+      limit: 2
+      retryPolicy: Always
+      backoff:
+        duration: "1m"
+        factor: 2
+      affinity:
+        nodeAntiAffinity: {}
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: gpu.nvidia.com/class
+                  operator: In
+                  values:
+                    - "{{workflow.parameters.trainer_gpu}}"
+                - key: topology.kubernetes.io/region
+                  operator: In
+                  values:
+                    - "{{workflow.parameters.region}}"
+    podSpecPatch: |
+      containers:
+        - name: main
+          resources:
+            limits:
+              nvidia.com/gpu: "{{workflow.parameters.trainer_gpu_count}}"
+            requests:
+              nvidia.com/gpu: "{{workflow.parameters.trainer_gpu_count}}"
